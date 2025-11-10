@@ -8,7 +8,8 @@ import base64
 from PIL import Image
 
 app = Flask(__name__)
-model = load_model("model.h5")
+model_path = os.path.join(os.path.dirname(__file__), "model.h5")
+model = load_model(model_path)
 
 UPLOAD_FOLDER = "static/uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
