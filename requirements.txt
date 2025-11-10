@@ -3,4 +3,3 @@ tensorflow>=2.10
 numpy
 pillow
 opencv-python
-gunicorn
