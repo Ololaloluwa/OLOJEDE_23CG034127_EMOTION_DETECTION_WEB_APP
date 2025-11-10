@@ -18,17 +18,32 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 MODEL_URL = "https://drive.google.com/file/d/1j_x0Sw5U9An34Fa271-UaS2A2nn1V6Ri/view?usp=drive_link"
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "model.h5")
 
-# 🔹 Download model if not present
-if not os.path.exists(MODEL_PATH):
-    print("Downloading model...")
-    r = requests.get(MODEL_URL, stream=True)
-    with open(MODEL_PATH, "wb") as f:
-        for chunk in r.iter_content(chunk_size=8192):
-            f.write(chunk)
-    print("Model downloaded.")
+# ==============================
+# 🔹 Lazy Load Model Variables
+# ==============================
+model = None  # Model will be loaded only when needed
 
-# 🔹 Load model globally
-model = load_model(MODEL_PATH)
+def get_model():
+    """
+    Loads the model only when first needed (lazy loading).
+    Keeps it in memory for future predictions.
+    """
+    global model
+
+    if model is None:
+        print("🔄 Loading model for the first time...")
+        if not os.path.exists(MODEL_PATH):
+            print("Downloading model...")
+            r = requests.get(MODEL_URL, stream=True)
+            with open(MODEL_PATH, "wb") as f:
+                for chunk in r.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            print("Model downloaded.")
+
+        model = load_model(MODEL_PATH, compile=False)
+        print("✅ Model loaded successfully.")
+    return model
+
 
 # 🔹 Label-to-emotion mapping
 emotion_map = {
@@ -60,9 +75,11 @@ def preprocess_image(img_path):
     img_array /= 255.0
     return img_array
 
+
 @app.route("/")
 def index():
     return render_template("index.html")
+
 
 @app.route("/predict", methods=["POST"])
 def predict():
@@ -85,6 +102,9 @@ def predict():
     else:
         return jsonify({"error": "No image provided"})
 
+    # 🔹 Lazy load model
+    model = get_model()
+
     # 🔹 Predict
     img_array = preprocess_image(img_path)
     preds = model.predict(img_array)[0]
@@ -99,8 +119,8 @@ def predict():
         "confidence": f"{confidence:.2f}%"
     })
 
+
 # 🔹 Run on Render dynamic port
 if __name__ == "__main__":
-    import os
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
