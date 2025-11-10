@@ -6,16 +6,29 @@ import os
 import io
 import base64
 from PIL import Image
+import requests
 
 app = Flask(__name__)
-
-# 🔹 Load model safely using relative path
-model_path = os.path.join(os.path.dirname(__file__), "model.h5")
-model = load_model(model_path)
 
 # 🔹 Upload folder for temporary images
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "static/uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# 🔹 External model URL (replace with your hosted model link)
+MODEL_URL = "https://drive.google.com/file/d/1j_x0Sw5U9An34Fa271-UaS2A2nn1V6Ri/view?usp=drive_link"
+MODEL_PATH = os.path.join(os.path.dirname(__file__), "model.h5")
+
+# 🔹 Download model if not present
+if not os.path.exists(MODEL_PATH):
+    print("Downloading model...")
+    r = requests.get(MODEL_URL, stream=True)
+    with open(MODEL_PATH, "wb") as f:
+        for chunk in r.iter_content(chunk_size=8192):
+            f.write(chunk)
+    print("Model downloaded.")
+
+# 🔹 Load model globally
+model = load_model(MODEL_PATH)
 
 # 🔹 Label-to-emotion mapping
 emotion_map = {
@@ -40,7 +53,6 @@ emotion_map = {
     "label_18": "Curious"
 }
 
-# 🔹 Preprocess image for prediction
 def preprocess_image(img_path):
     img = image.load_img(img_path, target_size=(48, 48), color_mode="grayscale")
     img_array = image.img_to_array(img)
@@ -56,14 +68,14 @@ def index():
 def predict():
     img_path = None
 
-    # Webcam capture (base64)
+    # 🔹 Handle webcam capture (base64)
     if request.form.get("image_data"):
         image_data = request.form["image_data"].split(",")[1]
         img = Image.open(io.BytesIO(base64.b64decode(image_data)))
         img_path = os.path.join(UPLOAD_FOLDER, "webcam_image.jpg")
         img.save(img_path)
 
-    # File upload
+    # 🔹 Handle uploaded image
     elif "file" in request.files:
         file = request.files["file"]
         if file.filename == "":
@@ -73,7 +85,7 @@ def predict():
     else:
         return jsonify({"error": "No image provided"})
 
-    # Prediction
+    # 🔹 Predict
     img_array = preprocess_image(img_path)
     preds = model.predict(img_array)[0]
     top_index = np.argmax(preds)
@@ -82,13 +94,12 @@ def predict():
     top_label = f"label_{top_index}"
     emotion = emotion_map.get(top_label, top_label)
 
-    # Return JSON in a format your frontend expects
     return jsonify({
         "emotion": emotion,
         "confidence": f"{confidence:.2f}%"
     })
 
-# 🔹 Run app with Render dynamic port
+# 🔹 Run on Render dynamic port
 if __name__ == "__main__":
     import os
     port = int(os.environ.get("PORT", 5000))
