@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Emotion Detection</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin-top: 50px;
+      background: #f2f2f2;
+    }
+    h1 {
+      color: #333;
+    }
+    #result {
+      margin-top: 20px;
+      font-size: 1.5em;
+      color: #007BFF;
+    }
+    img {
+      margin-top: 20px;
+      width: 200px;
+      height: 200px;
+      object-fit: cover;
+      border-radius: 10px;
+      border: 2px solid #ccc;
+    }
+  </style>
+</head>
+<body>
+  <h1>Emotion Detection Web App</h1>
+
+  <input type="file" id="imageUpload" accept="image/*"><br><br>
+  <button onclick="uploadImage()">Upload Image</button>
+  <button onclick="captureWebcam()">Use Webcam</button>
+
+  <div>
+    <video id="webcam" width="300" height="200" autoplay style="display:none;"></video>
+    <canvas id="canvas" width="300" height="200" style="display:none;"></canvas>
+  </div>
+
+  <div id="result"></div>
+
+  <script>
+    async function uploadImage() {
+      const fileInput = document.getElementById("imageUpload");
+      const resultDiv = document.getElementById("result");
+
+      if (!fileInput.files.length) {
+        resultDiv.innerText = "Please select an image first!";
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("file", fileInput.files[0]);
+
+      const response = await fetch("/predict", {
+        method: "POST",
+        body: formData
+      });
+
+      const data = await response.json();
+      if (data.emotion) {
+        resultDiv.innerText = `Detected Emotion: ${data.emotion}`;
+      } else {
+        resultDiv.innerText = `Error: ${data.error}`;
+      }
+    }
+
+    function captureWebcam() {
+      const video = document.getElementById("webcam");
+      const canvas = document.getElementById("canvas");
+      const resultDiv = document.getElementById("result");
+
+      video.style.display = "block";
+
+      navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
+        video.srcObject = stream;
+
+        setTimeout(() => {
+          const context = canvas.getContext("2d");
+          context.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const imageData = canvas.toDataURL("image/jpeg");
+
+          fetch("/predict", {
+            method: "POST",
+            body: new URLSearchParams({ image_data: imageData })
+          })
+            .then(response => response.json())
+            .then(data => {
+              if (data.emotion) {
+                resultDiv.innerText = `Detected Emotion: ${data.emotion}`;
+              } else {
+                resultDiv.innerText = `Error: ${data.error}`;
+              }
+            });
+
+          stream.getTracks().forEach(track => track.stop());
+          video.style.display = "none";
+        }, 3000);
+      });
+    }
+  </script>
+</body>
+</html>
