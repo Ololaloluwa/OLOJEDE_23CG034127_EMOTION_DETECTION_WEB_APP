@@ -8,13 +8,16 @@ import base64
 from PIL import Image
 
 app = Flask(__name__)
+
+# 🔹 Load model safely using relative path
 model_path = os.path.join(os.path.dirname(__file__), "model.h5")
 model = load_model(model_path)
 
-UPLOAD_FOLDER = "static/uploads"
+# 🔹 Upload folder for temporary images
+UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "static/uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# Label-to-emotion mapping
+# 🔹 Label-to-emotion mapping
 emotion_map = {
     "label_0": "Angry",
     "label_1": "Disgust",
@@ -37,7 +40,7 @@ emotion_map = {
     "label_18": "Curious"
 }
 
-
+# 🔹 Preprocess image for prediction
 def preprocess_image(img_path):
     img = image.load_img(img_path, target_size=(48, 48), color_mode="grayscale")
     img_array = image.img_to_array(img)
@@ -53,14 +56,14 @@ def index():
 def predict():
     img_path = None
 
-    # Handle webcam (base64)
+    # Webcam capture (base64)
     if request.form.get("image_data"):
         image_data = request.form["image_data"].split(",")[1]
         img = Image.open(io.BytesIO(base64.b64decode(image_data)))
         img_path = os.path.join(UPLOAD_FOLDER, "webcam_image.jpg")
         img.save(img_path)
 
-    # Handle uploaded image
+    # File upload
     elif "file" in request.files:
         file = request.files["file"]
         if file.filename == "":
@@ -70,7 +73,7 @@ def predict():
     else:
         return jsonify({"error": "No image provided"})
 
-    # Predict
+    # Prediction
     img_array = preprocess_image(img_path)
     preds = model.predict(img_array)[0]
     top_index = np.argmax(preds)
@@ -79,15 +82,13 @@ def predict():
     top_label = f"label_{top_index}"
     emotion = emotion_map.get(top_label, top_label)
 
-    # ✅ Match what frontend expects
+    # Return JSON in a format your frontend expects
     return jsonify({
         "emotion": emotion,
         "confidence": f"{confidence:.2f}%"
     })
 
-#if __name__ == "__main__":
-   # app.run(debug=True)
-
+# 🔹 Run app with Render dynamic port
 if __name__ == "__main__":
     import os
     port = int(os.environ.get("PORT", 5000))
